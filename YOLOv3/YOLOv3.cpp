@@ -7,30 +7,40 @@
 using namespace cv;
 using namespace std;
 
-// Declare file paths
+// declare file paths
 string classesFile = "C:/Users/dell/source/repos/YOLOv3/coco.names";
 string configFile = "C:/Users/dell/source/repos/YOLOv3/models/yolov3.cfg";
 string weightsFile = "C:/Users/dell/source/repos/YOLOv3/models/yolov3.weights";
 
-// Declare constants
+// declare constants
 float conf_threshold = 0.5f;
 float nms = 0.4f;
 int width = 416;
 int height = 416;
 
+// struct to store results
+struct Detection {
+    int classId;
+    float probability;
+    int x;
+    int y;
+    int width;
+    int height;
+};
+
 int main()
 {   
-    // Read class names and store into vector
+    // read class names and store into vector
     vector<string> classes;
     ifstream ifs(classesFile.c_str());
     string line;
     while(getline(ifs, line)) 
         classes.push_back(line);
 
-    // Load model from config and weights file
+    // load model from config and weights file
     dnn::Net net = dnn::readNetFromDarknet(configFile, weightsFile);
 
-    // Get output node names
+    // get output node names
     vector<String> outputLayerNames;
     vector<String> layersNames = net.getLayerNames();
     vector<int> outLayers = net.getUnconnectedOutLayers();
@@ -38,17 +48,17 @@ int main()
     for (size_t i = 0; i < outLayers.size(); ++i)
         outputLayerNames[i] = layersNames[outLayers[i] - 1];
 
-    // Load image and normalize it
+    // load image and normalize it
     Mat image, blob;
     image = imread("C:/Users/dell/source/repos/YOLOv3/test.jpg", IMREAD_COLOR);
     dnn::blobFromImage(image, blob, 1.0 / 255, Size(width, height), Scalar(0,0,0), true, false);
     net.setInput(blob);
 
-    // Feed input blob into network and get outputs
+    // feed input blob into network and get outputs
     vector<Mat> outs;
     net.forward(outs, outputLayerNames);
     
-    // Filter and process the results
+    // filter and process the results
     vector<int> classIds;
     vector<float> confidences;
     vector<Rect> boxes;
@@ -61,10 +71,10 @@ int main()
             Point classidPoint;
             double confidence;
             minMaxLoc(scores, 0, &confidence, 0, &classidPoint);
-            // Include only those results that exceed the confidence threshold
+            // include only those results that exceed the confidence threshold
             if (confidence > conf_threshold)
             {
-                // Calculate bounding-box co-ordinates
+                // calculate bounding-box co-ordinates
                 int centerX = (int)(data[0] * image.cols);
                 int centerY = (int)(data[1] * image.rows);
                 int w = (int)(data[2] * image.cols);
@@ -80,19 +90,28 @@ int main()
         }
     }
 
-    // Perform non-maximim-suppression to remove overlapping boxes for the same object 
+    // perform non-maximim-suppression to remove overlapping boxes for the same object 
     vector<int> indexes;
     dnn::NMSBoxes(boxes, confidences, conf_threshold, nms, indexes);
 
-    // Display results
+    // store results in struct and display
+    vector<Detection> objects;
     for (size_t i = 0; i < indexes.size(); ++i)
     {
         int idx = indexes[i];
-        int classId = classIds[idx];
-        string label = classes[classId];
-        float confidence = confidences[idx];
+
+        Detection d;
+        d.classId = classIds[idx];
+        d.probability = confidences[idx];
         Rect box = boxes[idx];
-        cout << label << "(" << confidence << "):";
-        cout << "[" << box.x << "," << box.y << "," << box.width << "," << box.height << "]" << endl;
+        d.x = box.x;
+        d.y = box.y;
+        d.width = box.width;
+        d.height = box.height;
+
+        objects.push_back(d);
+
+        cout << d.classId << "(" << d.probability << "):";
+        cout << "[" << d.x << "," << d.y << "," << d.width << "," << d.height << "]" << endl;
     }
 }
